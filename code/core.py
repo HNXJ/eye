@@ -31,7 +31,7 @@ def load_lms_vlm(model_name_prefix="qwen3.5-vl", port=4474, context_input=131072
             "lms", "load", target_model, 
             "--gpu", "max", 
             "--context-length", str(context_input),
-            "--ttl", "600" # Set TTL to 10 minutes (600 seconds)
+            "--ttl", "900" # Set TTL to 15 minutes (900 seconds)
         ], check=True)
         return True
         
