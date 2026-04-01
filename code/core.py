@@ -26,9 +26,12 @@ def load_lms_vlm(model_name_prefix="qwen3.5-vl", port=4474, context_input=131072
         if not target_model:
             raise ValueError(f"No model found matching prefix: {model_name_prefix}")
             
-        print(f"Loading model: {target_model} with context size {context_input} and TTL of 10 minutes...")
+        # Enforce absolute path loading from the Warehouse
+        absolute_model_path = os.path.join("/Users/hamednejat/workspace/Warehouse/mlx_models/lm_studio_format", target_model)
+            
+        print(f"Loading model from absolute path: {absolute_model_path} with context size {context_input} and TTL of 15 minutes...")
         subprocess.run([
-            "lms", "load", target_model, 
+            "lms", "load", absolute_model_path, 
             "--gpu", "max", 
             "--context-length", str(context_input),
             "--ttl", "900" # Set TTL to 15 minutes (900 seconds)
