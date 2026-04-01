@@ -42,6 +42,7 @@ def load_lms_vlm(model_name_prefix="qwen3.5-vl", port=4474, context_input=131072
 
 def get_lms_vlm_query(file_path, query="Describe the location of each object in this image relative to each other, and tell if is there a overlap or collision between boxes in image", min_tokens=10, max_tokens=1000, port=4474):
     """Encodes an image and queries the local vision model."""
+    print(f"Checking path: {file_path}") # Added for debugging
     if not os.path.exists(file_path):
         return f"Error: File {file_path} not found."
         
@@ -72,6 +73,7 @@ def get_lms_vlm_query(file_path, query="Describe the location of each object in 
     try:
         response = requests.post(f"http://localhost:{port}/v1/chat/completions", json=payload)
         response.raise_for_status()
+        print(f"Raw response text: {response.text}") # Added print for raw response
         return response.json()['choices'][0]['message']['content']
     except Exception as e:
         return f"Inference failed: {e}"
@@ -95,12 +97,7 @@ def parse_input():
                 print("Error: min_words and max_words must be integers.")
                 return
 
-            # Basic validation for image path existence
-            if not os.path.exists(image_path):
-                print(f"Error: Image file not found at {image_path}")
-                return
-
-            description = get_lms_vlm_query(image_path, min_tokens=min_words, max_tokens=max_words) # Corrected function call
+            description = get_lms_vlm_query(image_path, min_tokens=min_words, max_tokens=max_words) 
             print(description)
         else:
             print("Usage: python qwen_subagent.py /eye <image_path> <min_words> <max_words>")
