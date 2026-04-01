@@ -6,7 +6,7 @@ import time
 import os
 
 def load_lms_vlm(model_name_prefix="qwen3.5-vl", port=4474, context_input=131072):
-    """Starts the LMS server and loads the specified vision model."""
+    """Starts the LMS server and loads the specified vision model with a TTL."""
     print(f"Starting LM Studio server on port {port}...")
     # Start server in background
     subprocess.Popen(["lms", "server", "start", "--port", str(port)], stdout=subprocess.DEVNULL)
@@ -26,11 +26,12 @@ def load_lms_vlm(model_name_prefix="qwen3.5-vl", port=4474, context_input=131072
         if not target_model:
             raise ValueError(f"No model found matching prefix: {model_name_prefix}")
             
-        print(f"Loading model: {target_model} with context size {context_input}...")
+        print(f"Loading model: {target_model} with context size {context_input} and TTL of 10 minutes...")
         subprocess.run([
             "lms", "load", target_model, 
             "--gpu", "max", 
-            "--context-length", str(context_input)
+            "--context-length", str(context_input),
+            "--ttl", "600" # Set TTL to 10 minutes (600 seconds)
         ], check=True)
         return True
         
