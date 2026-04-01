@@ -73,10 +73,25 @@ def get_lms_vlm_query(file_path, query="Describe the location of each object in 
     try:
         response = requests.post(f"http://localhost:{port}/v1/chat/completions", json=payload)
         response.raise_for_status()
-        print(f"Raw response text: {response.text}") # Added print for raw response
-        return response.json()['choices'][0]['message']['content']
+        response_json = response.json() # Parse JSON response
+        
+        message = response_json.get('choices', [{}])[0].get('message', {})
+        message_content = message.get('content')
+        reasoning_content = message.get('reasoning_content')
+        
+        if message_content:
+            return message_content
+        elif reasoning_content:
+            return reasoning_content
+        else:
+            return "VLM returned an empty response or failed to generate description."
+            
+    except requests.exceptions.RequestException as e:
+        return f"Network or HTTP error during inference: {e}"
+    except json.JSONDecodeError:
+        return f"Failed to decode JSON response from LM Studio. Raw response: {response.text}"
     except Exception as e:
-        return f"Inference failed: {e}"
+        return f"An unexpected error occurred: {e}"
 
 def parse_input():
     args = sys.argv[1:] # Get arguments excluding the script name
