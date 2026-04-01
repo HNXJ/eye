@@ -4,40 +4,66 @@ import base64
 import json
 import time
 import os
+import sys
 
-def load_lms_vlm(model_name_prefix="qwen3.5-vl", port=4474, context_input=131072):
-    """Starts the LMS server and loads the specified vision model with a TTL."""
-    print(f"Starting LM Studio server on port {port}...")
-    # Start server in background
-    subprocess.Popen(["lms", "server", "start", "--port", str(port)], stdout=subprocess.DEVNULL)
-    time.sleep(3) # Give server time to bind to port
-    
-    print("Finding model ID...")
+# Constants for GAMMA Protocol
+ALIAS_PATH = os.path.expanduser("~/.lmstudio/models/mlx_models_alias")
+WAREHOUSE_PATH = "/Users/hamednejat/workspace/Warehouse/mlx_models/lm_studio_format"
+
+def resolve_lms_alias_model(model_name_prefix):
+    """
+    Verifies the alias path and resolves the exact model identifier 
+    required by LM Studio, specifically filtering for the alias namespace.
+    """
+    if not os.path.exists(ALIAS_PATH):
+        print(f"CRITICAL ERROR: LM Studio alias path {ALIAS_PATH} is broken or missing.")
+        # Trigger user decision router logic (mocked here for the script's scope)
+        print("Please ensure the Warehouse drive is mounted and 'Full Disk Access' is granted.")
+        return None
+
     try:
         result = subprocess.run(["lms", "ls", "--json"], capture_output=True, text=True, check=True)
         models = json.loads(result.stdout)
         
-        target_model = None
+        # Priority 1: Search specifically within the alias namespace
         for model in models:
-            if model_name_prefix.lower() in model.get("identifier", "").lower():
-                target_model = model["identifier"]
-                break
-                
-        if not target_model:
-            raise ValueError(f"No model found matching prefix: {model_name_prefix}")
+            identifier = model.get("identifier", "")
+            if "mlx_models_alias" in identifier and model_name_prefix.lower() in identifier.lower():
+                return identifier
+        
+        # Priority 2: Fallback to absolute warehouse path loading if lms identifies it directly
+        for model in models:
+            path = model.get("path", "")
+            if WAREHOUSE_PATH in path and model_name_prefix.lower() in path.lower():
+                return model.get("identifier")
+
+        return None
+    except Exception as e:
+        print(f"Error during model resolution: {e}")
+        return None
+
+def load_lms_vlm(model_name_prefix="qwen3.5-vl", port=4474, context_input=131072):
+    """Starts the LMS server and loads the specified vision model via the GAMMA alias resolver."""
+    print(f"Starting LM Studio server on port {port}...")
+    subprocess.Popen(["lms", "server", "start", "--port", str(port)], stdout=subprocess.DEVNULL)
+    time.sleep(3) 
+    
+    print(f"Resolving model identifier for prefix: {model_name_prefix}...")
+    target_model = resolve_lms_alias_model(model_name_prefix)
+    
+    if not target_model:
+        print(f"FAILED: Model matching prefix '{model_name_prefix}' not found in {ALIAS_PATH}.")
+        return False
             
-        # Enforce absolute path loading from the Warehouse
-        absolute_model_path = os.path.join("/Users/hamednejat/workspace/Warehouse/mlx_models/lm_studio_format", target_model)
-            
-        print(f"Loading model from absolute path: {absolute_model_path} with context size {context_input} and TTL of 15 minutes...")
+    print(f"Loading model via identifier: {target_model}...")
+    try:
         subprocess.run([
-            "lms", "load", absolute_model_path, 
+            "lms", "load", target_model, 
             "--gpu", "max", 
             "--context-length", str(context_input),
-            "--ttl", "900" # Set TTL to 15 minutes (900 seconds)
+            "--ttl", "900" 
         ], check=True)
         return True
-        
     except Exception as e:
         print(f"Failed to load model: {e}")
         return False
@@ -47,14 +73,12 @@ def get_lms_vlm_query(file_path, query="Describe the location of each object in 
     if not os.path.exists(file_path):
         return f"Error: File {file_path} not found."
         
-    # Read and encode image
     with open(file_path, "rb") as image_file:
         encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
         
     mime_type = "image/png" if file_path.lower().endswith('.png') else "image/jpeg"
     data_uri = f"data:{mime_type};base64,{encoded_string}"
     
-    # Construct strictly constrained prompt
     constrained_query = f"{query}\n\nConstraint: Your response must be strictly between {min_tokens} and {max_tokens} words."
     
     payload = {
@@ -67,7 +91,7 @@ def get_lms_vlm_query(file_path, query="Describe the location of each object in 
                 ]
             }
         ],
-        "temperature": 0.1, # Keep it deterministic for coordinate mapping
+        "temperature": 0.1, 
         "max_tokens": max_tokens
     }
     
