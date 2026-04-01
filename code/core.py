@@ -4,54 +4,66 @@ import base64
 import json
 import time
 import os
-from PIL import Image
-from io import BytesIO
 
 def load_lms_vlm(model_name_prefix="qwen3.5-vl", port=4474, context_input=131072):
     """Starts the LMS server and loads the specified vision model."""
     print(f"Starting LM Studio server on port {port}...")
+    # Start server in background
     subprocess.Popen(["lms", "server", "start", "--port", str(port)], stdout=subprocess.DEVNULL)
-    time.sleep(3)
+    time.sleep(3) # Give server time to bind to port
     
+    print("Finding model ID...")
     try:
         result = subprocess.run(["lms", "ls", "--json"], capture_output=True, text=True, check=True)
         models = json.loads(result.stdout)
-        target_model = next((m["identifier"] for m in models if model_name_prefix.lower() in m.get("identifier", "").lower()), None)
         
+        target_model = None
+        for model in models:
+            if model_name_prefix.lower() in model.get("identifier", "").lower():
+                target_model = model["identifier"]
+                break
+                
         if not target_model:
             raise ValueError(f"No model found matching prefix: {model_name_prefix}")
             
-        print(f"Loading model: {target_model}...")
-        subprocess.run(["lms", "load", target_model, "--gpu", "max", "--context-length", str(context_input)], check=True)
+        print(f"Loading model: {target_model} with context size {context_input}...")
+        subprocess.run([
+            "lms", "load", target_model, 
+            "--gpu", "max", 
+            "--context-length", str(context_input)
+        ], check=True)
         return True
+        
     except Exception as e:
         print(f"Failed to load model: {e}")
         return False
 
-def optimize_asset(file_path, max_edge=1024):
-    """Sanitizes and resizes images before encoding."""
-    if not os.path.exists(file_path): return None
-    img = Image.open(file_path)
-    if max(img.size) > max_edge:
-        img.thumbnail((max_edge, max_edge))
-    buffered = BytesIO()
-    img.save(buffered, format="PNG")
-    return base64.b64encode(buffered.getvalue()).decode('utf-8')
-
-def get_lms_vlm_query(file_path, query="Describe this image", min_tokens=10, max_tokens=1000, port=4474):
+def get_lms_vlm_query(file_path, query="Describe the location of each object in this image relative to each other, and tell if is there a overlap or collision between boxes in image", min_tokens=10, max_tokens=1000, port=4474):
     """Encodes an image and queries the local vision model."""
-    encoded_string = optimize_asset(file_path)
-    if not encoded_string: return f"Error: File {file_path} not found."
+    if not os.path.exists(file_path):
+        return f"Error: File {file_path} not found."
         
+    # Read and encode image
+    with open(file_path, "rb") as image_file:
+        encoded_string = base64.b64encode(image_file.read()).decode('utf-8')
+        
+    mime_type = "image/png" if file_path.lower().endswith('.png') else "image/jpeg"
+    data_uri = f"data:{mime_type};base64,{encoded_string}"
+    
+    # Construct strictly constrained prompt
+    constrained_query = f"{query}\n\nConstraint: Your response must be strictly between {min_tokens} and {max_tokens} words."
+    
     payload = {
-        "messages": [{
-            "role": "user",
-            "content": [
-                {"type": "text", "text": f"{query}\nConstraint: Strictly {min_tokens}-{max_tokens} words."},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{encoded_string}"}}
-            ]
-        }],
-        "temperature": 0.1,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": constrained_query},
+                    {"type": "image_url", "image_url": {"url": data_uri}}
+                ]
+            }
+        ],
+        "temperature": 0.1, # Keep it deterministic for coordinate mapping
         "max_tokens": max_tokens
     }
     
@@ -63,8 +75,11 @@ def get_lms_vlm_query(file_path, query="Describe this image", min_tokens=10, max
         return f"Inference failed: {e}"
 
 def unload_lms_vlm():
-    """Unloads all models from VRAM."""
+    """Unloads all models currently active in LM Studio to free VRAM."""
+    print("Unloading all models from VRAM...")
     try:
         subprocess.run(["lms", "unload", "--all"], check=True)
         return True
-    except: return False
+    except subprocess.CalledProcessError as e:
+        print(f"Failed to unload models: {e}")
+        return False
