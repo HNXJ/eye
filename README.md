@@ -1,13 +1,16 @@
-# Policy GAMMA v1.0
-Target: Generalized Regex Policy Set
-This repository contains scripts and configurations for optimizing Gemini CLI policies using a regex-based architecture, replacing granular literal matching for improved performance and maintainability.
+# Eye: Local Multimodal Vision Integration (GAMMA Architecture)
+
+The "Eye" module provides an autonomous visual reasoning cortex for the Gemini CLI, leveraging local MLX-optimized VLMs (Qwen-VL) via LM Studio.
 
 ## Architecture
-- **Policy Optimizer:** `policy_optimizer.py` script to generate generalized regex rules.
-- **Configuration:** `auto-saved.toml` managed by the script.
-- **Documentation:** README and config files for clarity.
+- **Inference Engine:** LM Studio (Port 4474)
+- **Modality Handling:** `code/ingestion.py` (Conversions & Base64)
+- **Asset Optimization:** `code/optimizer.py` (Pillow downsampling & HTML/SVG stripping)
+- **Scientific Debugging:** `code/vision_debugger.py` (Deterministic code patches)
+- **Meta-Awareness:** `code/reflection.py` (Context Audit & Tool Extraction)
 
-## Rules
-- **Absolute Integrity:** Generalized policies will NOT allow `rm` on `*.dat`, `*.abf`, or `*.nwb` file extensions.
-- **Shell Wildcards:** `run_shell_command` with `.*` is allowed for primary development commands, but current `$PWD` verification is mandatory.
-- **Network Scoping:** Network access is limited unless explicitly specified.
+## Standardized Tools
+- `mlx_lms_eye_local`: High-level multimodal description.
+- `mlx_lms_view`: Visual error analysis vs. instructions.
+- `optimize_asset_tool`: Pre-inference sanitization gate.
+- `context_audit_extractor`: Autonomous skill formalization.

@@ -4,3 +4,4 @@
 - **Max Edge Threshold:** 1024px
 - **Sanitization Limit:** 2MB (HTML/SVG)
 - **Context Window:** 131072 tokens
+- **Model TTL:** 60 minutes
